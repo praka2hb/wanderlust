@@ -43,7 +43,7 @@ const storySchema = z.object({
   story: z.string().min(1),
   visitedLocation: z.string().min(1),
   imageUrl: z.string().url(),
-  visitedDate: z.string().transform((val) => new Date(parseInt(val))),
+  visitedDate: z.string().transform((val: string) => new Date(parseInt(val))),
 });
 
 // Register route
