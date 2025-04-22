@@ -286,5 +286,13 @@ app.get("/search", authenticateToken, async (req: AuthenticatedRequest, res) => 
   }
 });
 
+
+// At the end of src/index.ts
+if (process.env.NODE_ENV !== "production") {
+    app.listen(3000, () => {
+      console.log("Server Listening on 3000");
+    });
+  }
+
 // Remove app.listen and export for Vercel
 export default app;
