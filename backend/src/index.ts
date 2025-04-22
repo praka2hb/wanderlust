@@ -4,12 +4,22 @@ import bcrypt from "bcrypt";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { AuthenticatedRequest, authenticateToken } from "./middleware";
 import { upload } from "./multer";
+import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
 import cors from "cors";
+import logger from "./logger";
+import { z } from "zod";
 
 const app = express();
 const prisma = new PrismaClient();
+
+// Initialize Google Drive API
+const auth = new google.auth.GoogleAuth({
+  credentials: JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS!),
+  scopes: ["https://www.googleapis.com/auth/drive.file"],
+});
+const drive = google.drive({ version: "v3", auth });
 
 app.use(
   cors({
@@ -21,34 +31,41 @@ app.use(
 );
 
 app.use(express.json());
-
-// Explicitly handle OPTIONS for all routes
 app.options("*", cors());
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+const storySchema = z.object({
+  title: z.string().min(1),
+  story: z.string().min(1),
+  visitedLocation: z.string().min(1),
+  imageUrl: z.string().url(),
+  visitedDate: z.string().transform((val) => new Date(parseInt(val))),
+});
 
 // Register route
 app.post("/register", async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) {
-     res.status(400).json({ message: "Invalid Input" });
-     return
+    logger.warn("Invalid register input", { email });
+    res.status(400).json({ message: "Invalid Input" });
+    return;
   }
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: {
-        email,
-        username,
-        password: hashedPassword,
-      },
+      data: { email, username, password: hashedPassword },
     });
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || "secret");
-    res.json({
-      message: "User Created Successfully",
-      token,
-      id: user.id,
-    });
+    logger.info("User registered", { email, userId: user.id });
+    res.json({ message: "User Created Successfully", token, id: user.id });
   } catch (e) {
+    logger.error("Register error", { error: e, email });
     res.status(400).json({ message: "Unable to Create User" });
+    return;
   }
 });
 
@@ -56,39 +73,48 @@ app.post("/register", async (req, res) => {
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
-     res.status(400).json({ message: "Invalid Input" });
-     return
+    logger.warn("Invalid login input", { email });
+    res.status(400).json({ message: "Invalid Input" });
+    return;
   }
   try {
+    const parsed = loginSchema.parse(req.body);
     const user = await prisma.user.findFirst({
-      where: { email },
+      where: { email: parsed.email },
+      select: { id: true, password: true },
     });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-       res.status(401).json({ message: "Incorrect Credentials" });
-       return
+    if (!user || !(await bcrypt.compare(parsed.password, user.password))) {
+      logger.warn("Incorrect login credentials", { email });
+      res.status(401).json({ message: "Incorrect Credentials" });
+      return;
     }
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || "secret");
-    res.json({
-      message: "Login Successful",
-      token,
-    });
+    logger.info("Login successful", { email, userId: user.id });
+    res.json({ message: "Login Successful", token });
   } catch (e) {
-    res.status(400).json({ message: "Unable to login" });
+    logger.error("Login error", { error: e, email: req.body.email });
+    res.status(400).json({ message: e instanceof z.ZodError ? "Invalid Input" : "Internal Server Error" });
+    return;
   }
 });
 
 // Get users route
 app.get("/get-users", authenticateToken, async (req: AuthenticatedRequest, res) => {
   if (!req.user) {
-     res.status(401).json({ message: "Unauthorized" });
-     return
+    logger.warn("Unauthorized access to get-users");
+    res.status(401).json({ message: "Unauthorized" });
+    return;
   }
   const { id } = req.user as JwtPayload;
-  const user = await prisma.user.findFirst({ where: { id } });
-  res.json({
-    message: "Access Granted",
-    user,
-  });
+  try {
+    const user = await prisma.user.findFirst({ where: { id } });
+    logger.info("User fetched", { userId: id });
+    res.json({ message: "Access Granted", user });
+  } catch (e) {
+    logger.error("Get users error", { error: e });
+    res.status(500).json({ message: "Unable to Fetch User" });
+    return;
+  }
 });
 
 // Add travel story route
@@ -96,8 +122,9 @@ app.post("/add-travelstory", authenticateToken, async (req: AuthenticatedRequest
   const { title, story, visitedLocation, imageUrl, visitedDate } = req.body;
   const { id } = req.user as JwtPayload;
   if (!title || !story || !visitedLocation || !visitedDate || !imageUrl) {
-     res.status(400).json({ message: "All Fields Are Required" });
-     return
+    logger.warn("Missing travel story fields", { userId: id });
+    res.status(400).json({ message: "All Fields Are Required" });
+    return;
   }
   const parseVisitedDate = new Date(parseInt(visitedDate));
   try {
@@ -111,12 +138,12 @@ app.post("/add-travelstory", authenticateToken, async (req: AuthenticatedRequest
         imageUrl,
       },
     });
-    res.json({
-      message: "Travel Story Created Successfully",
-      story: travelstory,
-    });
+    logger.info("Travel story created", { storyId: travelstory.id, userId: id });
+    res.json({ message: "Travel Story Created Successfully", story: travelstory });
   } catch (e) {
+    logger.error("Add travel story error", { error: e });
     res.status(400).json({ message: "Unable to Create Travel Story" });
+    return;
   }
 });
 
@@ -131,45 +158,77 @@ app.get("/get-allstory", authenticateToken, async (req: AuthenticatedRequest, re
       },
       orderBy: { isFavourite: "desc" },
     });
+    logger.info("Fetched all stories", { count: travelStories.length });
     res.json({ travelStories });
   } catch (e) {
+    logger.error("Get all stories error", { error: e });
     res.status(500).json({ message: "Unable to Fetch the Stories" });
+    return;
   }
 });
 
 // Image upload route (modified for Vercel)
 app.post("/image-upload", upload.single("image"), async (req: AuthenticatedRequest, res) => {
+  if (!req.file) {
+    logger.warn("No file uploaded");
+    res.status(400).json({ message: "No File Uploaded" });
+    return;
+  }
   try {
-    if (!req.file) {
-       res.status(400).json({ message: "No File Uploaded" });
-       return
-    }
-    // Use /tmp for Vercel
-    const imageUrl = `/tmp/uploads/${req.file.filename}`;
-    res.json({ imageUrl });
+    const fileMetadata = {
+      name: req.file.filename,
+      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID!],
+    };
+    const media = {
+      mimeType: req.file.mimetype,
+      body: fs.createReadStream(req.file.path),
+    };
+    const { data } = await drive.files.create({
+      requestBody: fileMetadata,
+      media,
+      fields: "id",
+    });
+    await drive.permissions.create({
+      fileId: data.id!,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+    const { data: fileData } = await drive.files.get({
+      fileId: data.id!,
+      fields: "webViewLink",
+    });
+    fs.unlinkSync(req.file.path); // Clean up /tmp
+    logger.info("Image uploaded to Google Drive", { imageUrl: fileData.webViewLink });
+    res.json({ imageUrl: fileData.webViewLink });
   } catch (e) {
-    res.status(400).json({ message: "Unable to Upload Image" });
+    logger.error("Image upload error", { error: e });
+    res.status(500).json({ message: "Unable to Upload Image" });
+    return;
   }
 });
 
 // Delete image route (modified for Vercel)
 app.delete("/delete-image", async (req, res) => {
+  const { imageUrl } = req.query;
+  if (!imageUrl) {
+    logger.warn("Invalid delete image input");
+    res.status(400).json({ message: "Invalid Input" });
+    return;
+  }
   try {
-    const { imageUrl } = req.query;
-    if (!imageUrl) {
-       res.status(400).json({ message: "Invalid Input" });
-       return
-    }
     const filename = path.basename(imageUrl as string);
     const filepath = path.join("/tmp/uploads", filename);
     if (fs.existsSync(filepath)) {
       fs.unlinkSync(filepath);
       res.status(200).json({ message: "Image Deleted Successfully" });
+      return;
     } else {
       res.status(404).json({ message: "Image Not Found" });
+      return;
     }
   } catch (e) {
+    logger.error("Delete image error", { error: e });
     res.status(400).json({ message: "Unable to Delete Image" });
+    return;
   }
 });
 
@@ -182,18 +241,20 @@ app.put("/edit-story/:id", authenticateToken, async (req: AuthenticatedRequest, 
   const { title, story, visitedLocation, imageUrl, visitedDate } = req.body;
   const { id: userId } = req.user as JwtPayload;
   if (!title || !story || !visitedLocation || !visitedDate || !imageUrl) {
-     res.status(400).json({ message: "All Fields Are Required" });
-     return
+    logger.warn("Missing edit story fields", { storyId: id, userId });
+    res.status(400).json({ message: "All Fields Are Required" });
+    return;
   }
   const parseVisitedDate = new Date(parseInt(visitedDate));
-  const defaultImageUrl = "https://your-vercel-domain.vercel.app/assets/wanderlust.jpeg";
+  const defaultImageUrl = "https://wanderlust-vert-nu.vercel.app/assets/wanderlust.jpeg";
   try {
     const travelstory = await prisma.story.findFirst({
       where: { id, authorId: userId },
     });
     if (!travelstory) {
-       res.status(404).json({ message: "Travel Story Not Found" });
-       return
+      logger.warn("Travel story not found", { storyId: id, userId });
+      res.status(404).json({ message: "Travel Story Not Found" });
+      return;
     }
     const updateStory = await prisma.story.update({
       where: { id },
@@ -205,12 +266,12 @@ app.put("/edit-story/:id", authenticateToken, async (req: AuthenticatedRequest, 
         imageUrl: imageUrl || defaultImageUrl,
       },
     });
-    res.json({
-      message: "Travel Story Updated Successfully",
-      story: updateStory,
-    });
+    logger.info("Travel story updated", { storyId: id, userId });
+    res.json({ message: "Travel Story Updated Successfully", story: updateStory });
   } catch (e) {
-    res.status(400).json({ message: "Unable to Update Travel Story" });
+    logger.error("Edit story error", { error: e });
+    res.status(400).json({ message: e instanceof z.ZodError ? "Invalid Input" : "Unable to Update Travel Story" });
+    return;
   }
 });
 
@@ -223,76 +284,82 @@ app.delete("/delete-story/:id", authenticateToken, async (req: AuthenticatedRequ
       where: { id, authorId: userId },
     });
     if (!travelstory) {
-       res.status(404).json({ message: "Travel Story Not Found" });
-       return
+      logger.warn("Travel story not found", { storyId: id, userId });
+      res.status(404).json({ message: "Travel Story Not Found" });
+      return;
     }
     await prisma.story.delete({ where: { id } });
+    logger.info("Travel story deleted", { storyId: id, userId });
     res.json({ message: "Travel Story Deleted Successfully" });
   } catch (e) {
+    logger.error("Delete story error", { error: e });
     res.status(400).json({ message: "Unable to Delete Travel Story" });
+    return;
   }
 });
 
 // Favourite story route
 app.put("/favourite-story/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { id } = req.params;
-  const { isFavourite } = req.body;
+  const { isFavourite } = z.object({ isFavourite: z.boolean() }).parse(req.body);
   try {
     const story = await prisma.story.findUnique({ where: { id } });
     if (!story) {
-       res.status(404).json({ message: "Story not found" });
-       return
+      logger.warn("Story not found", { storyId: id });
+      res.status(404).json({ message: "Story not found" });
+      return;
     }
     const updatedStory = await prisma.story.update({
       where: { id },
       data: { isFavourite },
     });
-    res.json({
-      message: "Story favourite status updated successfully",
-      story: updatedStory,
-    });
+    logger.info("Story favourite status updated", { storyId: id });
+    res.json({ message: "Story favourite status updated successfully", story: updatedStory });
   } catch (e) {
+    logger.error("Favourite story error", { error: e });
     res.status(500).json({ message: "Unable to update story favourite status" });
+    return;
   }
 });
 
 // Search route
 app.get("/search", authenticateToken, async (req: AuthenticatedRequest, res) => {
-  const { query } = req.query;
+  const { query } = z.object({ query: z.string().min(1) }).parse(req.query);
   const { id: userId } = req.user as JwtPayload;
   if (!query) {
-     res.status(400).json({ message: "Query is Required" });
-     return
+    logger.warn("Search query missing", { userId });
+    res.status(400).json({ message: "Query is Required" });
+    return;
   }
   try {
     const travelStories = await prisma.story.findMany({
       where: {
         authorId: userId,
         OR: [
-          { title: { contains: query as string, mode: "insensitive" } },
-          { story: { contains: query as string, mode: "insensitive" } },
-          { visitedLocation: { has: query as string } },
+          { title: { contains: query, mode: "insensitive" } },
+          { story: { contains: query, mode: "insensitive" } },
+          { visitedLocation: { has:query } },
         ],
       },
       orderBy: { isFavourite: "desc" },
     });
+    logger.info("Search executed", { query, userId, count: travelStories.length });
     if (travelStories.length === 0) {
-       res.status(200).json({ message: "No Stories Found" });
-       return
+      res.status(200).json({ message: "No Stories Found" });
+      return;
     }
     res.json({ travelStories });
   } catch (e) {
-    res.status(400).json({ message: "Unable to Search" });
+    logger.error("Search error", { error: e });
+    res.status(400).json({ message: e instanceof z.ZodError ? "Invalid Query" : "Unable to Search" });
+    return;
   }
 });
 
+app.use((err: Error, req: Request, res: Response, next: Function) => {
+  logger.error("Unhandled error", { error: err, path: req.path });
+  res.status(500).json({ message: "Internal Server Error" });
+  return;
+});
 
-// At the end of src/index.ts
-if (process.env.NODE_ENV !== "production") {
-    app.listen(3000, () => {
-      console.log("Server Listening on 3000");
-    });
-  }
-
-// Remove app.listen and export for Vercel
 export default app;
