@@ -79,7 +79,7 @@ const AddEditModal = ({
         const formData = new FormData()
         formData.append("image", imageFile)
         const uploadRes = await axios.post(
-          "http://localhost:3000/image-upload",
+          "https://wanderlust-vert-nu.vercel.app/image-upload",
           formData,
           { headers: { "Content-Type": "multipart/form-data" } }
         )
@@ -98,7 +98,7 @@ const AddEditModal = ({
       // 3. Submit based on type (add or edit)
       if (type === "add") {
         await axios.post(
-          "http://localhost:3000/add-travelstory",
+          "https://wanderlust-vert-nu.vercel.app/add-travelstory",
           payload,
           { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
         )
@@ -106,7 +106,7 @@ const AddEditModal = ({
       } else {
         // For edit, use PUT and include the ID
         await axios.put(
-          `http://localhost:3000/edit-story/${storyInfo.id}`,
+          `https://wanderlust-vert-nu.vercel.app/edit-story/${storyInfo.id}`,
           payload,
           { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
         )
@@ -126,7 +126,7 @@ const AddEditModal = ({
 
     try {
       await axios.delete(
-        `http://localhost:3000/delete-story/${storyInfo.id}`,
+        `https://wanderlust-vert-nu.vercel.app/delete-story/${storyInfo.id}`,
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       )
       toast.success("Story deleted successfully")

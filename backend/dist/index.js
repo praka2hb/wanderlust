@@ -20,7 +20,6 @@ const middleware_1 = require("./middleware");
 const multer_1 = require("./multer");
 const googleapis_1 = require("googleapis");
 const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
 const cors_1 = __importDefault(require("cors"));
 const logger_1 = __importDefault(require("./logger"));
 const zod_1 = require("zod");
@@ -174,12 +173,12 @@ app.get("/get-allstory", middleware_1.authenticateToken, (req, res) => __awaiter
 }));
 // Image upload route (modified for Vercel)
 app.post("/image-upload", multer_1.upload.single("image"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.file) {
-        logger_1.default.warn("No file uploaded");
-        res.status(400).json({ message: "No File Uploaded" });
-        return;
-    }
     try {
+        if (!req.file) {
+            logger_1.default.warn("No file uploaded");
+            res.status(400).json({ message: "No File Uploaded" });
+            return;
+        }
         const fileMetadata = {
             name: req.file.filename,
             parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
@@ -197,49 +196,41 @@ app.post("/image-upload", multer_1.upload.single("image"), (req, res) => __await
             fileId: data.id,
             requestBody: { role: "reader", type: "anyone" },
         });
-        const { data: fileData } = yield drive.files.get({
-            fileId: data.id,
-            fields: "webViewLink",
-        });
+        const directImageUrl = `https://drive.google.com/uc?export=view&id=${data.id}`;
         fs_1.default.unlinkSync(req.file.path); // Clean up /tmp
-        logger_1.default.info("Image uploaded to Google Drive", { imageUrl: fileData.webViewLink });
-        res.json({ imageUrl: fileData.webViewLink });
+        logger_1.default.info("Image uploaded to Google Drive", { imageUrl: directImageUrl });
+        res.json({ imageUrl: directImageUrl });
     }
     catch (e) {
         logger_1.default.error("Image upload error", { error: e });
         res.status(500).json({ message: "Unable to Upload Image" });
-        return;
     }
 }));
 // Delete image route (modified for Vercel)
 app.delete("/delete-image", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { imageUrl } = req.query;
-    if (!imageUrl) {
-        logger_1.default.warn("Invalid delete image input");
-        res.status(400).json({ message: "Invalid Input" });
-        return;
-    }
+    var _a;
     try {
-        const filename = path_1.default.basename(imageUrl);
-        const filepath = path_1.default.join("/tmp/uploads", filename);
-        if (fs_1.default.existsSync(filepath)) {
-            fs_1.default.unlinkSync(filepath);
-            res.status(200).json({ message: "Image Deleted Successfully" });
+        const { imageUrl } = req.query;
+        if (!imageUrl) {
+            logger_1.default.warn("Invalid delete image input");
+            res.status(400).json({ message: "Invalid Input" });
             return;
         }
-        else {
-            res.status(404).json({ message: "Image Not Found" });
+        const fileId = (_a = imageUrl.match(/id=([^&]+)/)) === null || _a === void 0 ? void 0 : _a[1];
+        if (!fileId) {
+            logger_1.default.warn("Invalid Google Drive file URL");
+            res.status(400).json({ message: "Invalid File URL" });
             return;
         }
+        yield drive.files.delete({ fileId });
+        logger_1.default.info("Image deleted from Google Drive", { fileId });
+        res.status(200).json({ message: "Image Deleted Successfully" });
     }
     catch (e) {
         logger_1.default.error("Delete image error", { error: e });
-        res.status(400).json({ message: "Unable to Delete Image" });
-        return;
+        res.status(500).json({ message: "Unable to Delete Image" });
     }
 }));
-// Serve static files (modified for Vercel)
-app.use("/uploads", express_1.default.static("/tmp/uploads"));
 // Edit story route
 app.put("/edit-story/:id", middleware_1.authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;

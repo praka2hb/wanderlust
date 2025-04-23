@@ -169,12 +169,12 @@ app.get("/get-allstory", authenticateToken, async (req: AuthenticatedRequest, re
 
 // Image upload route (modified for Vercel)
 app.post("/image-upload", upload.single("image"), async (req: AuthenticatedRequest, res) => {
-  if (!req.file) {
-    logger.warn("No file uploaded");
-    res.status(400).json({ message: "No File Uploaded" });
-    return;
-  }
   try {
+    if (!req.file) {
+      logger.warn("No file uploaded");
+      res.status(400).json({ message: "No File Uploaded" });
+      return
+    }
     const fileMetadata = {
       name: req.file.filename,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID!],
@@ -192,48 +192,41 @@ app.post("/image-upload", upload.single("image"), async (req: AuthenticatedReque
       fileId: data.id!,
       requestBody: { role: "reader", type: "anyone" },
     });
-    const { data: fileData } = await drive.files.get({
-      fileId: data.id!,
-      fields: "webViewLink",
-    });
+    const directImageUrl = `https://drive.google.com/uc?export=view&id=${data.id}`;
     fs.unlinkSync(req.file.path); // Clean up /tmp
-    logger.info("Image uploaded to Google Drive", { imageUrl: fileData.webViewLink });
-    res.json({ imageUrl: fileData.webViewLink });
+    logger.info("Image uploaded to Google Drive", { imageUrl: directImageUrl });
+    res.json({ imageUrl: directImageUrl });
   } catch (e) {
     logger.error("Image upload error", { error: e });
     res.status(500).json({ message: "Unable to Upload Image" });
-    return;
   }
 });
 
 // Delete image route (modified for Vercel)
+
 app.delete("/delete-image", async (req, res) => {
-  const { imageUrl } = req.query;
-  if (!imageUrl) {
-    logger.warn("Invalid delete image input");
-    res.status(400).json({ message: "Invalid Input" });
-    return;
-  }
   try {
-    const filename = path.basename(imageUrl as string);
-    const filepath = path.join("/tmp/uploads", filename);
-    if (fs.existsSync(filepath)) {
-      fs.unlinkSync(filepath);
-      res.status(200).json({ message: "Image Deleted Successfully" });
-      return;
-    } else {
-      res.status(404).json({ message: "Image Not Found" });
-      return;
+    const { imageUrl } = req.query;
+    if (!imageUrl) {
+      logger.warn("Invalid delete image input");
+      res.status(400).json({ message: "Invalid Input" });
+      return
     }
+    const fileId = (imageUrl as string).match(/id=([^&]+)/)?.[1];
+    if (!fileId) {
+      logger.warn("Invalid Google Drive file URL");
+      res.status(400).json({ message: "Invalid File URL" });
+      return
+    }
+    await drive.files.delete({ fileId });
+    logger.info("Image deleted from Google Drive", { fileId });
+    res.status(200).json({ message: "Image Deleted Successfully" });
   } catch (e) {
     logger.error("Delete image error", { error: e });
-    res.status(400).json({ message: "Unable to Delete Image" });
-    return;
+    res.status(500).json({ message: "Unable to Delete Image" });
   }
 });
 
-// Serve static files (modified for Vercel)
-app.use("/uploads", express.static("/tmp/uploads"));
 
 // Edit story route
 app.put("/edit-story/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {

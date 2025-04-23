@@ -3,11 +3,35 @@ import { FaHeart } from 'react-icons/fa6'
 import { GrMapLocation } from 'react-icons/gr'
 
 const TravelStoryCard = ({ imgUrl, title, story, date, visitedLocation, isFavourite, onFavouriteClick, onClick }: any) => {
+    const getDirectImageUrl = (url: string): string => {
+        if (!url) return ''
+        try {
+          // 1) Grab the fileId from either "/d/FILE_ID/" or "?id=FILE_ID"
+          const idMatch = url.match(/\/file\/d\/([^\/]+)\//)
+          const fileId = idMatch?.[1] || new URL(url).searchParams.get('id')
+          if (fileId) {
+            console.debug('Drive fileId:', fileId)
+            // 2) Use "uc?export=download" for a direct image URL
+            return `https://drive.google.com/uc?export=download&id=${fileId}`
+          }
+        } catch (e) {
+          console.error('getDirectImageUrl error:', e)
+        }
+        // 3) Fallback to whatever URL you got
+        return url
+      }
   return (
     <div className='border rounded-lg overflow-hidden hover:shadow-lg bg-white/40 hover:shadow-slate-200 transition-all ease-in-out duration-300 relative cursor-pointer'>
-        <img src={imgUrl} alt={title} 
-        className='w-full h-56 object-cover rounded-lg' 
-        onClick={onClick}/>
+        <img
+        src={getDirectImageUrl(imgUrl)}
+        alt={title}
+        className="w-full h-56 object-cover rounded-lg"
+        onClick={onClick}
+        onError={e => {
+          console.error('Image failed to load, showing placeholder')
+          e.currentTarget.src = 'https://placehold.co/600x400?text=Image+Unavailable'
+        }}
+      />
         <button className='flex justify-center items-center absolute top-4 right-4 h-10 w-10 bg-black/40 rounded-lg border-white/30 border-2'>
             <FaHeart className={`text-[22px] test-slate-300 cursor-pointer hover:text-lime-400 ${isFavourite ? 'text-lime-400' : "text-white"}`} onClick={onFavouriteClick}/>
         </button>
