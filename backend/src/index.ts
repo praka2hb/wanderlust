@@ -217,6 +217,26 @@ app.post("/image-upload", upload.single("image"), async (req: AuthenticatedReque
 });
 
 
+// …after your /image-upload handler, before the error‐handler…
+app.get('/image/:fileId', authenticateToken, async (req, res) => {
+  const { fileId } = req.params;
+  try {
+    // stream the raw file bytes from Drive
+    const driveRes = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+    // forward content type if present
+    if (driveRes.headers['content-type']) {
+      res.setHeader('Content-Type', driveRes.headers['content-type']);
+    }
+    driveRes.data.pipe(res);
+  } catch (e) {
+    logger.error('Image proxy error', { error: e, fileId });
+    res.status(500).json({ message: 'Unable to fetch image' });
+  }
+});
+
 // Edit story route
 app.put("/edit-story/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { id } = req.params;
