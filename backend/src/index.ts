@@ -173,44 +173,43 @@ app.post("/image-upload", upload.single("image"), async (req: AuthenticatedReque
     if (!req.file) {
       logger.warn("No file uploaded");
       res.status(400).json({ message: "No File Uploaded" });
-      return
+      return;
     }
-    const fileMetadata = {
-      name: req.file.filename,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID!],
-    };
-    const media = {
-      mimeType: req.file.mimetype,
-      body: fs.createReadStream(req.file.path),
-    };
-    const { data } = await drive.files.create({
-      requestBody: fileMetadata,
-      media,
+
+    // upload to Drive
+    const { data: createData } = await drive.files.create({
+      requestBody: {
+        name: req.file.filename,
+        parents: [process.env.GOOGLE_DRIVE_FOLDER_ID!],
+      },
+      media: {
+        mimeType: req.file.mimetype,
+        body: fs.createReadStream(req.file.path),
+      },
       fields: "id",
     });
-    // Set public permissions
+
+    // make it public
     await drive.permissions.create({
-      fileId: data.id!,
+      fileId: createData.id!,
       requestBody: { role: "reader", type: "anyone" },
-      fields: "id",
-    }).catch((e) => {
-      logger.error("Failed to set public permissions", { fileId: data.id, error: e });
-      throw new Error("Permission setting failed");
     });
-    // Verify permissions
-    const { data: permissions } = await drive.permissions.list({
-      fileId: data.id!,
-      fields: "permissions(id,role,type)",
+
+    // fetch the direct download link
+    const { data: fileData } = await drive.files.get({
+      fileId: createData.id!,
+      fields: "id, webContentLink",
     });
-    const isPublic = permissions.permissions?.some(p => p.type === "anyone" && p.role === "reader");
-    if (!isPublic) {
-      logger.error("File is not publicly accessible", { fileId: data.id });
-      throw new Error("File not publicly accessible");
+    if (!fileData.webContentLink) {
+      throw new Error("Missing webContentLink");
     }
-    const directImageUrl = `https://drive.google.com/uc?export=view&id=${data.id}`;
-    logger.info("Image uploaded to Google Drive", { fileId: data.id, imageUrl: directImageUrl });
+
+    const directImageUrl = fileData.webContentLink;
+    logger.info("Image uploaded to Google Drive", { fileId: createData.id, imageUrl: directImageUrl });
+
     fs.unlinkSync(req.file.path);
     res.json({ imageUrl: directImageUrl });
+
   } catch (e) {
     logger.error("Image upload error", { error: e });
     res.status(500).json({ message: "Unable to Upload Image" });
