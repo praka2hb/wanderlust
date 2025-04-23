@@ -11,7 +11,6 @@ import {
 import DateSelector from "./DateSelector"
 import axios from "axios"
 import { toast } from "react-toastify"
-import moment from "moment"
 
 const AddEditModal = ({
   type,
