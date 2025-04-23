@@ -219,21 +219,28 @@ app.post("/image-upload", upload.single("image"), async (req: AuthenticatedReque
 
 // …after your /image-upload handler, before the error‐handler…
 app.get('/image/:fileId', async (req, res) => {
-  const { fileId } = req.params;
+  // strip whitespace/newlines from param
+  const rawId = req.params.fileId;
+  const fileId = rawId.trim();
+
   try {
-    // stream the raw file bytes from Drive
+    // fetch the file bytes as a stream
     const driveRes = await drive.files.get(
       { fileId, alt: 'media' },
       { responseType: 'stream' }
     );
-    // forward content type if present
-    if (driveRes.headers['content-type']) {
-      res.setHeader('Content-Type', driveRes.headers['content-type']);
-    }
+    // forward Content-Type header
+    const contentType = driveRes.headers['content-type'] || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    // pipe the stream directly to the client
     driveRes.data.pipe(res);
-  } catch (e) {
-    logger.error('Image proxy error', { error: e, fileId });
-    res.status(500).json({ message: 'Unable to fetch image' });
+  } catch (err: any) {
+    const driveErr = err?.response?.data || err.message;
+    logger.error('Image proxy error', { fileId, driveErr });
+    res.status(500).json({
+      message: 'Unable to fetch image',
+      details: driveErr
+    });
   }
 });
 
