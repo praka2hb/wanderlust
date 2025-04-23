@@ -188,42 +188,32 @@ app.post("/image-upload", upload.single("image"), async (req: AuthenticatedReque
       media,
       fields: "id",
     });
+    // Set public permissions
     await drive.permissions.create({
       fileId: data.id!,
       requestBody: { role: "reader", type: "anyone" },
+      fields: "id",
+    }).catch((e) => {
+      logger.error("Failed to set public permissions", { fileId: data.id, error: e });
+      throw new Error("Permission setting failed");
     });
+    // Verify permissions
+    const { data: permissions } = await drive.permissions.list({
+      fileId: data.id!,
+      fields: "permissions(id,role,type)",
+    });
+    const isPublic = permissions.permissions?.some(p => p.type === "anyone" && p.role === "reader");
+    if (!isPublic) {
+      logger.error("File is not publicly accessible", { fileId: data.id });
+      throw new Error("File not publicly accessible");
+    }
     const directImageUrl = `https://drive.google.com/uc?export=view&id=${data.id}`;
-    fs.unlinkSync(req.file.path); // Clean up /tmp
-    logger.info("Image uploaded to Google Drive", { imageUrl: directImageUrl });
+    logger.info("Image uploaded to Google Drive", { fileId: data.id, imageUrl: directImageUrl });
+    fs.unlinkSync(req.file.path);
     res.json({ imageUrl: directImageUrl });
   } catch (e) {
     logger.error("Image upload error", { error: e });
     res.status(500).json({ message: "Unable to Upload Image" });
-  }
-});
-
-// Delete image route (modified for Vercel)
-
-app.delete("/delete-image", async (req, res) => {
-  try {
-    const { imageUrl } = req.query;
-    if (!imageUrl) {
-      logger.warn("Invalid delete image input");
-      res.status(400).json({ message: "Invalid Input" });
-      return
-    }
-    const fileId = (imageUrl as string).match(/id=([^&]+)/)?.[1];
-    if (!fileId) {
-      logger.warn("Invalid Google Drive file URL");
-      res.status(400).json({ message: "Invalid File URL" });
-      return
-    }
-    await drive.files.delete({ fileId });
-    logger.info("Image deleted from Google Drive", { fileId });
-    res.status(200).json({ message: "Image Deleted Successfully" });
-  } catch (e) {
-    logger.error("Delete image error", { error: e });
-    res.status(500).json({ message: "Unable to Delete Image" });
   }
 });
 

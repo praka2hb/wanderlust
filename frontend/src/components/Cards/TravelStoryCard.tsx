@@ -3,23 +3,29 @@ import { FaHeart } from 'react-icons/fa6'
 import { GrMapLocation } from 'react-icons/gr'
 
 const TravelStoryCard = ({ imgUrl, title, story, date, visitedLocation, isFavourite, onFavouriteClick, onClick }: any) => {
-    const getDirectImageUrl = (url: string): string => {
-        if (!url) return ''
+      const getDirectImageUrl = (url: string): string => {
+        if (!url) return '';
         try {
-          // 1) Grab the fileId from either "/d/FILE_ID/" or "?id=FILE_ID"
-          const idMatch = url.match(/\/file\/d\/([^\/]+)\//)
-          const fileId = idMatch?.[1] || new URL(url).searchParams.get('id')
-          if (fileId) {
-            console.debug('Drive fileId:', fileId)
-            // 2) Use "uc?export=download" for a direct image URL
-            return `https://drive.google.com/uc?export=download&id=${fileId}`
+          // Extract fileId from various Google Drive URL formats
+          let fileId: string | null = null;
+          if (url.includes('/file/d/')) {
+            const idMatch = url.match(/\/file\/d\/([^\/]+)\//);
+            fileId = idMatch?.[1] || null;
+          } else if (url.includes('id=')) {
+            fileId = new URL(url).searchParams.get('id');
           }
+          if (fileId) {
+            console.debug('Drive fileId:', fileId);
+            // Use export=view for direct image display
+            return `https://drive.google.com/uc?export=view&id=${fileId}`;
+          }
+          console.warn('No fileId found in URL:', url);
+          return url; // Fallback to original URL
         } catch (e) {
-          console.error('getDirectImageUrl error:', e)
+          console.error('getDirectImageUrl error:', e);
+          return url; // Fallback to original URL
         }
-        // 3) Fallback to whatever URL you got
-        return url
-      }
+      };
   return (
     <div className='border rounded-lg overflow-hidden hover:shadow-lg bg-white/40 hover:shadow-slate-200 transition-all ease-in-out duration-300 relative cursor-pointer'>
         <img
