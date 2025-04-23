@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { BASE_URL } from "../utils/constant"
 import {
   MdAdd,
   MdClose,
@@ -10,6 +11,7 @@ import {
 import DateSelector from "./DateSelector"
 import axios from "axios"
 import { toast } from "react-toastify"
+import moment from "moment"
 
 const AddEditModal = ({
   type,
@@ -27,12 +29,25 @@ const AddEditModal = ({
   const [error, setError] = useState("")
 
   // Load story data when editing
+  const transformImgUrl = (url: string) => {
+    try {
+      const match = url.match(/\/file\/d\/([^\/]+)(?:\/|$)/)
+      const fileId = match?.[1] || new URL(url).searchParams.get("id")
+      if (fileId) {
+        return `${BASE_URL}/image/${fileId}`
+      }
+    } catch {
+      /* ignore */
+    }
+    return url
+  }
+
   useEffect(() => {
     if (type === "edit" && storyInfo) {
       setTitle(storyInfo.title || "")
       setStory(storyInfo.story || "")
       setDate(storyInfo.visitedDate ? new Date(storyInfo.visitedDate) : new Date())
-      setImagePreview(storyInfo.imageUrl || "")
+      setImagePreview(transformImgUrl(storyInfo.imageUrl || ""))
       setLocations(
         storyInfo.visitedLocation && storyInfo.visitedLocation.length > 0
           ? storyInfo.visitedLocation
@@ -40,6 +55,7 @@ const AddEditModal = ({
       )
     }
   }, [type, storyInfo])
+
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -249,7 +265,7 @@ const AddEditModal = ({
             {imagePreview ? (
               <div className="relative">
                 <img
-                  src={imagePreview}
+                  src={imageFile ? imagePreview : transformImgUrl(imagePreview)}
                   alt="Preview"
                   className="max-h-60 mx-auto rounded-md object-cover"
                 />

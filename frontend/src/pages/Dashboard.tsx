@@ -8,6 +8,8 @@ import { MdAdd, MdEdit, MdDelete, MdClose, MdLocationOn } from 'react-icons/md'
 import Modal from "react-modal"
 import AddEditModal from "../components/AddEditModal"
 import moment from "moment"
+import { BASE_URL } from "../utils/constant"
+
 
 export const Dashboard = () => {
   const navigate = useNavigate()
@@ -17,6 +19,21 @@ export const Dashboard = () => {
     isShown: false,
     story: null,
   })
+
+
+  const transformImgUrl = (url: string) => {
+    try {
+      const match = url.match(/\/file\/d\/([^\/]+)(?:\/|$)/)
+      const fileId = match?.[1] || new URL(url).searchParams.get("id")
+      if (fileId) {
+        return `${BASE_URL}/image/${fileId}`
+      }
+    } catch {
+      // Handle error if needed
+      console.error("Error transforming image URL")
+    }
+    return url
+  }
 
   const openDetail = (story: any) => {
     setDetailModal({ isShown: true, story })
@@ -139,7 +156,7 @@ export const Dashboard = () => {
                   return (
                     <TravelStoryCard 
                       key={item.id} 
-                      imgUrl={item.imageUrl}
+                      imgUrl={transformImgUrl(item.imageUrl)}
                       title={item.title}
                       story={item.story}
                       date={item.visitedDate}
@@ -228,7 +245,7 @@ export const Dashboard = () => {
             
             <div className="relative rounded-lg overflow-hidden h-72">
               <img 
-                src={detailModal.story.imageUrl} 
+                src={transformImgUrl(detailModal.story.imageUrl)}
                 alt={detailModal.story.title}
                 className="w-full h-full object-cover" 
               />
