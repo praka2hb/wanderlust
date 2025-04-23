@@ -24,25 +24,20 @@ const TravelStoryCard = ({
   onClick = () => {}
 }: Props) => {
   const getImageSrc = (url: string) => {
-    // try extract fileId from /d/XYZ/ or ?id=XYZ
     try {
-      const match = url.match(/\/file\/d\/([^\/]+)(?:\/|$)/)
-      const fileId = match?.[1] || new URL(url).searchParams.get('id')
+      const match = url.match(/\/file\/d\/([^\/]+)(?:\/|$)/);
+      const fileId = match?.[1] || new URL(url).searchParams.get('id');
       if (fileId) {
-        return `https://drive.google.com/uc?export=download&id=${fileId}`
+        return `https://wanderlust-vert-nu.vercel.app/image/${fileId}`;   // proxy through your API
       }
-    } catch {
-      /* ignore */
-    }
-    return url
-  }
-
-  console.log("Image URL:", imgUrl);
+    } catch {}
+    return url;
+  };
 
   return (
     <div className="border rounded-lg overflow-hidden hover:shadow-lg bg-white/40 hover:shadow-slate-200 transition-all duration-300 relative cursor-pointer">
       <img
-        src="https://drive.google.com/uc?export=view&id=1oBc7TCt-FDjQYuXB2BJjoB4bTi1_kxY3"
+        src={getImageSrc(imgUrl)}
         alt={title}
         className="w-full h-56 object-cover"
         onClick={onClick}

@@ -218,7 +218,7 @@ app.post("/image-upload", upload.single("image"), async (req: AuthenticatedReque
 
 
 // …after your /image-upload handler, before the error‐handler…
-app.get('/image/:fileId', authenticateToken, async (req, res) => {
+app.get('/image/:fileId', async (req, res) => {
   const { fileId } = req.params;
   try {
     // stream the raw file bytes from Drive
