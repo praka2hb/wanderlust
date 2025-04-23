@@ -197,53 +197,61 @@ export const Dashboard = () => {
         style={{
           overlay: {
             backgroundColor: "rgba(0,0,0,0.2)",
-            zIndex: 999
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           },
           content: {
+            width: '95%',
             maxWidth: '800px',
             margin: 'auto',
             borderRadius: '8px',
-            padding: '20px',
+            padding: '16px',
             maxHeight: '90vh',
             overflow: 'auto'
           }
         }} 
         appElement={document.getElementById('root') as HTMLElement}
         contentLabel="Travel Story Details"
+        className="ReactModal__Content scrollbar bg-lime-50"
       >
         {detailModal.story && (
-          <div className="flex flex-col gap-4 ">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-semibold text-slate-700">
+          <div className="flex flex-col gap-3 md:gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <h2 className="text-xl sm:text-2xl font-semibold text-slate-700 pr-10 sm:pr-0">
                 {detailModal.story.title}
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 absolute top-4 right-4 sm:static">
                 {isAuthor(detailModal.story) && (
                   <>
                     <button 
                       onClick={() => openEditModal(detailModal.story)}
-                      className="p-2 bg-lime-400 text-white rounded-full hover:bg-lime-500"
+                      className="p-1.5 sm:p-2 bg-lime-400 text-white rounded-full hover:bg-lime-500"
+                      aria-label="Edit story"
                     >
-                      <MdEdit />
+                      <MdEdit className="text-lg" />
                     </button>
                     <button 
                       onClick={() => deleteStory(detailModal.story.id)}
-                      className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      className="p-1.5 sm:p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      aria-label="Delete story"
                     >
-                      <MdDelete />
+                      <MdDelete className="text-lg" />
                     </button>
                   </>
                 )}
                 <button 
                   onClick={closeDetail}
-                  className="p-2 bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300"
+                  className="p-1.5 sm:p-2 bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300"
+                  aria-label="Close modal"
                 >
-                  <MdClose />
+                  <MdClose className="text-lg" />
                 </button>
               </div>
             </div>
             
-            <div className="relative rounded-lg overflow-hidden h-72">
+            <div className="relative rounded-lg overflow-hidden h-48 sm:h-72">
               <img 
                 src={transformImgUrl(detailModal.story.imageUrl)}
                 alt={detailModal.story.title}
@@ -251,22 +259,22 @@ export const Dashboard = () => {
               />
             </div>
             
-            <div className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-500">
               <span>{moment(detailModal.story.visitedDate).format('MMM DD, YYYY')}</span>
               <span>•</span>
               <span>By {detailModal.story.author?.username || "Unknown"}</span>
             </div>
             
-            <div className="flex flex-wrap gap-2 my-2">
+            <div className="flex flex-wrap gap-2 my-1 sm:my-2">
               {detailModal.story.visitedLocation?.map((location: string, idx: number) => (
                 <div key={idx} className="flex items-center gap-1 text-xs bg-lime-50 text-lime-600 px-2 py-1 rounded">
-                  <MdLocationOn />
+                  <MdLocationOn className="text-xs sm:text-sm" />
                   <span>{location}</span>
                 </div>
               ))}
             </div>
             
-            <div className="text-slate-700 whitespace-pre-wrap">
+            <div className="text-sm sm:text-base text-slate-700 whitespace-pre-wrap">
               {detailModal.story.story}
             </div>
           </div>
