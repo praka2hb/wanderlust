@@ -74,9 +74,9 @@ export const NavBar = () => {
           className="md:hidden bg-white shadow-lg"
         >
           <div className="container mx-auto px-4 py-4 flex flex-col space-y-4">
-            <MobileNavLink href="/" label="Home" onClick={() => setIsMenuOpen(false)} />
-            <MobileNavLink href="/#features" label="Features" onClick={() => setIsMenuOpen(false)} />
-            <MobileNavLink href="/#destinations" label="Destinations" onClick={() => setIsMenuOpen(false)} />
+            <MobileNavLink href="/home" label="Home" onClick={() => setIsMenuOpen(false)} />
+            <MobileNavLink href="/home#features" label="Features" onClick={() => setIsMenuOpen(false)} />
+            <MobileNavLink href="/home#destinations" label="Destinations" onClick={() => setIsMenuOpen(false)} />
             <Link
               to={isAuthenticated ? "/dashboard" : "/login"}
               className="px-4 py-2 bg-lime-500 text-white rounded-md hover:bg-lime-400 transition-all duration-300 text-center"
