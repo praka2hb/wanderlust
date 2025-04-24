@@ -22,9 +22,9 @@ export const DestinationGallery = () => {
     },
     {
       id: 4,
-      name: "Bali, Indonesia",
-      image: "https://images.pexels.com/photos/1694621/pexels-photo-1694621.jpeg?auto=compress&cs=tinysrgb&w=800",
-      description: "Tropical paradise with lush rice terraces"
+      name: "Nainital, India",
+      image: "https://media.istockphoto.com/id/2165729590/photo/portrait-of-nainital-lake-india-aerial-view-of-nainital-lake-stock-photo.jpg?s=612x612&w=0&k=20&c=zREU9NYjGwlmUGcZwfU3LRXqy_92coSbddDZXIJ7Fc4=",
+      description: "A serene lake town cradled in the arms of the Himalayas."
     }
   ];
 
@@ -90,6 +90,8 @@ export const DestinationGallery = () => {
                 <img 
                   src={destination.image} 
                   alt={destination.name}
+                  width={400}
+                  height={500}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
               </div>
